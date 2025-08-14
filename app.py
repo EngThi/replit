@@ -1,7 +1,7 @@
 import streamlit as st
 import os
 from automation import GoogleAIStudioAutomation
-from utils import validate_email, sanitize_input
+from utils import validate_email, sanitize_input, check_playwright_installation, get_browser_info
 
 def main():
     """
@@ -10,15 +10,46 @@ def main():
     st.title("🤖 Automação Google AI Studio")
     st.markdown("### Login Automatizado com Playwright")
     
+    # Informações sobre o projeto
+    with st.expander("ℹ️ Sobre este Projeto", expanded=False):
+        st.markdown("""
+        Esta aplicação demonstra como automatizar o login no Google AI Studio usando **Playwright** - 
+        uma biblioteca poderosa para automação de navegadores web.
+        
+        **Funcionalidades:**
+        - Interface web amigável construída com Streamlit
+        - Automação completa do processo de login do Google
+        - Suporte para autenticação de dois fatores (2FA)
+        - Validação de credenciais e tratamento de erros
+        - Modo simulação para demonstração
+        
+        **Tecnologias utilizadas:**
+        - **Streamlit**: Interface web interativa
+        - **Playwright**: Automação de navegador
+        - **Python**: Lógica de backend e processamento
+        
+        **Nota importante:** No ambiente Replit, algumas dependências do sistema podem estar faltando,
+        o que pode impedir a execução completa da automação. Use o modo "Simular Automação" para 
+        ver como funcionaria.
+        """)
+    
     # Sidebar com informações e configurações
     with st.sidebar:
         st.header("⚙️ Configurações")
-        headless_mode = st.checkbox("Modo Headless", value=True, help="Execute o navegador em segundo plano")
+        headless_mode = st.checkbox("Modo Headless", value=True, help="Execute o navegador em segundo plano", disabled=True)
+        st.caption("Modo headless obrigatório no Replit")
         timeout_2fa = st.slider("Timeout 2FA (segundos)", min_value=30, max_value=120, value=40, step=10)
         
         st.markdown("---")
         st.markdown("### 🔒 Segurança")
         st.info("As credenciais podem ser fornecidas via variáveis de ambiente (SEU_EMAIL, SUA_SENHA) ou inseridas abaixo.")
+        
+        st.markdown("---")
+        st.markdown("### ⚠️ Limitações do Ambiente")
+        st.warning("No ambiente Replit, algumas dependências do navegador podem estar faltando. Isso pode causar erros durante a automação.")
+        
+        if st.button("🔧 Verificar Dependências"):
+            check_browser_dependencies()
     
     # Formulário principal
     st.markdown("### 📧 Credenciais de Acesso")
@@ -77,8 +108,30 @@ def main():
                 st.error("Por favor, forneça uma senha válida.")
                 return
             
+            # Verificar dependências antes de executar
+            if not check_playwright_installation():
+                st.error("❌ Playwright não está instalado corretamente.")
+                st.info("💡 Clique em 'Verificar Dependências' na barra lateral para mais informações.")
+                return
+            
             # Executar automação
             execute_automation(email, password, headless_mode, timeout_2fa)
+    
+    # Botão alternativo para demonstração
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("📋 Simular Automação (Demo)", use_container_width=True):
+            if not email_valid:
+                st.error("Por favor, forneça um email válido.")
+                return
+            
+            if not password_valid:
+                st.error("Por favor, forneça uma senha válida.")
+                return
+            
+            # Executar simulação
+            simulate_automation(email, password, timeout_2fa)
 
 def execute_automation(email: str, password: str, headless: bool, timeout_2fa: int):
     """
@@ -166,6 +219,123 @@ def execute_automation(email: str, password: str, headless: bool, timeout_2fa: i
                     automation.close_browser()
             except:
                 pass
+
+def simulate_automation(email: str, password: str, timeout_2fa: int):
+    """
+    Simula o processo de automação sem executar o navegador real
+    """
+    import time
+    
+    # Sanitizar inputs
+    email = sanitize_input(email)
+    password = sanitize_input(password)
+    
+    # Criar container para status
+    status_container = st.container()
+    
+    with status_container:
+        st.info("🎭 **Modo Demonstração** - Simulando processo de automação")
+        
+        # Barra de progresso
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        steps = [
+            ("🔄 Inicializando navegador Playwright...", 10),
+            ("🌐 Navegando para https://aistudio.google.com/...", 25),
+            ("🔍 Procurando botão 'Sign in'...", 40),
+            (f"📧 Inserindo email: {email[:3]}***@{email.split('@')[1] if '@' in email else 'gmail.com'}", 55),
+            ("🔒 Inserindo senha...", 70),
+            (f"⏳ Aguardando autenticação de dois fatores ({timeout_2fa}s)...", 85),
+            ("✅ Login simulado concluído!", 100)
+        ]
+        
+        for step_text, progress in steps:
+            status_text.text(step_text)
+            progress_bar.progress(progress)
+            time.sleep(1.5)  # Simular tempo de processamento
+            
+        st.success("🎉 Simulação da automação finalizada!")
+        st.info("📝 **Código que seria executado:**")
+        
+        # Exibir o código que seria executado
+        code_example = f"""
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+    
+    # 1. Navegar para Google AI Studio
+    page.goto("https://aistudio.google.com/")
+    
+    # 2. Clicar em "Sign in"
+    page.click("text=Sign in")
+    
+    # 3. Inserir email
+    page.fill("input[type='email']", "{email}")
+    page.click("text=Next")
+    
+    # 4. Inserir senha
+    page.wait_for_timeout(3000)
+    page.fill("input[type='password']", "***")
+    page.click("text=Next")
+    
+    # 5. Aguardar 2FA
+    page.wait_for_timeout({timeout_2fa * 1000})
+    
+    # 6. Login concluído
+    print("Login automatizado realizado!")
+    browser.close()
+        """
+        
+        st.code(code_example, language="python")
+        
+        st.markdown("---")
+        st.markdown("**💡 Para executar realmente:**")
+        st.markdown("""
+        1. Execute este código em um ambiente local
+        2. Instale as dependências: `pip install playwright` e `playwright install`
+        3. Configure suas credenciais como variáveis de ambiente
+        4. Use com responsabilidade e respeite os termos de uso do Google
+        """)
+
+def check_browser_dependencies():
+    """
+    Verifica e exibe o status das dependências do navegador
+    """
+    st.markdown("#### 🔍 Status das Dependências")
+    
+    # Verificar instalação do Playwright
+    playwright_ok = check_playwright_installation()
+    
+    if playwright_ok:
+        st.success("✅ Playwright está instalado")
+        
+        # Obter informações dos navegadores
+        browser_info = get_browser_info()
+        
+        if browser_info:
+            st.markdown("**Navegadores disponíveis:**")
+            for browser, info in browser_info.items():
+                if info['available']:
+                    st.success(f"✅ {browser.title()}: Disponível")
+                else:
+                    st.error(f"❌ {browser.title()}: Não disponível")
+        else:
+            st.warning("⚠️ Não foi possível obter informações dos navegadores")
+            
+    else:
+        st.error("❌ Playwright não está instalado corretamente")
+    
+    st.markdown("---")
+    st.markdown("**💡 Soluções para erros de dependências:**")
+    st.markdown("""
+    1. **Ambiente Replit**: Algumas dependências do sistema podem estar faltando
+    2. **Modo Headless**: Sempre use modo headless no Replit
+    3. **Limitações**: A automação pode não funcionar completamente devido às restrições do ambiente
+    4. **Alternativa**: Execute o código em um ambiente local com todas as dependências instaladas
+    """)
 
 if __name__ == "__main__":
     # Configurar página

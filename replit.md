@@ -2,6 +2,14 @@
 
 This is a Streamlit-based automation tool designed to automate Google AI Studio login using Playwright browser automation. The application provides a user-friendly interface for configuring and executing automated login processes, with built-in security features for handling credentials and 2FA authentication.
 
+## Recent Changes (August 14, 2025)
+
+- **Environment Adaptation**: Modified the application to work within Replit's constraints where some system dependencies for browser automation may be missing
+- **Enhanced Error Handling**: Added comprehensive error messages and dependency checking functionality
+- **Simulation Mode**: Implemented a demonstration mode that shows how the automation would work without requiring browser dependencies
+- **Improved User Experience**: Added informational sections, better validation feedback, and dependency status checking
+- **Security Optimizations**: Forced headless mode for Replit environment and optimized browser launch arguments
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.

@@ -30,15 +30,25 @@ class GoogleAIStudioAutomation:
         try:
             self.playwright = sync_playwright().start()
             
-            # Configurações do navegador
+            # Configurações do navegador otimizadas para Replit
             browser_options = {
-                'headless': self.headless,
+                'headless': True,  # Força headless no Replit
                 'args': [
                     '--no-sandbox',
                     '--disable-dev-shm-usage',
                     '--disable-blink-features=AutomationControlled',
                     '--disable-web-security',
-                    '--disable-features=VizDisplayCompositor'
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-gpu',
+                    '--disable-extensions',
+                    '--disable-plugins',
+                    '--no-first-run',
+                    '--no-default-browser-check',
+                    '--disable-default-apps',
+                    '--single-process',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding'
                 ]
             }
             
@@ -53,7 +63,14 @@ class GoogleAIStudioAutomation:
             self.page.set_default_timeout(30000)  # 30 segundos
             
         except Exception as e:
-            raise Exception(f"Erro ao inicializar navegador: {str(e)}")
+            error_msg = str(e)
+            if "Host system is missing dependencies" in error_msg:
+                raise Exception("❌ Dependências do sistema faltando para executar navegadores. "
+                              "Este erro é comum no ambiente Replit. "
+                              "Para usar esta funcionalidade completamente, execute em um ambiente local "
+                              "com todas as dependências instaladas.")
+            else:
+                raise Exception(f"Erro ao inicializar navegador: {error_msg}")
     
     def navigate_to_ai_studio(self):
         """
