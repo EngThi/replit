@@ -6,7 +6,8 @@
   "customizations": {
     "vscode": {
       "settings": {
-        "terminal.integrated.shell.linux": "/bin/bash"
+        "terminal.integrated.shell.linux": "/bin/bash",
+        "python.defaultInterpreterPath": "/workspaces/replit/venv/bin/python"
       },
       "extensions": [
         "ms-python.python",
@@ -14,7 +15,11 @@
       ]
     }
   },
-  "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt && playwright install-deps && playwright install chromium",
+  "postCreateCommand": "python -m venv venv && source venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt",
   "forwardPorts": [5000],
-  "remoteUser": "vscode"
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "HOME": "/home/vscode"
+  },
+  "onCreateCommand": "sudo mkdir -p /home/codespace && sudo chown vscode:vscode /home/codespace && mkdir -p /home/codespace/.config/vscode-dev-containers"
 }

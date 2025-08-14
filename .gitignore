@@ -58,3 +58,14 @@ Thumbs.db
 
 # Logs
 *.log
+# Adicionar .env ao .gitignore para segurança
+.env
+*.env
+credentials.txt
+passwords.txt
+
+# Browser profile and cache
+browser_profile/
+
+# Node modules
+node_modules/
