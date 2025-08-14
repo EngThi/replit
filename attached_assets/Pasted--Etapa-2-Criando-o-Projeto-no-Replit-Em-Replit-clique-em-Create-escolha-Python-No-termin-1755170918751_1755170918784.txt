@@ -1,0 +1,102 @@
+🧪 Etapa 2: Criando o Projeto no Replit
+Em Replit, clique em “Create” → escolha “Python”.
+
+No terminal (“Shell”), rode:
+
+bash
+pip install playwright
+playwright install
+Crie main.py e cole:
+
+python
+from playwright.sync_api import sync_playwright
+import os
+
+SEU_EMAIL = os.getenv("SEU_EMAIL")
+SUA_SENHA = os.getenv("SUA_SENHA")
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=False)
+    page = browser.new_page()
+    page.goto("https://aistudio.google.com/")
+
+    page.click("text=Sign in")
+    page.fill("input[type='email']", SEU_EMAIL)
+    page.click("text=Next")
+
+    page.wait_for_timeout(3000)
+    page.fill("input[type='password']", SUA_SENHA)
+    page.click("text=Next")
+
+    page.wait_for_timeout(40000)  # tempo para 2FA
+    print("Login concluído!")
+    browser.close()
+🔐 Etapa 3: Segurança e Privacidade
+Nunca exponha credenciais em código público.
+
+Use variáveis de ambiente no Replit:
+
+Vá em Secrets
+
+Adicione SEU_EMAIL e SUA_SENHA
+
+Acesse com os.getenv("SEU_EMAIL") e os.getenv("SUA_SENHA")
+
+🧠 Etapa 4: Expandindo a Automação
+Ação	Código Playwright
+Clicar botão	page.click("text=Nome do Botão")
+Digitar texto	page.fill("seletor", "texto")
+Esperar elemento	page.wait_for_selector("seletor")
+Capturar texto	page.inner_text("seletor")
+Nova aba	page.context.new_page()
+Loop em elementos	for item in lista: page.click(item)
+🧩 Etapa 5: Interface Visual com Streamlit
+python
+import streamlit as st
+from playwright.sync_api import sync_playwright
+import os
+
+def run_automation(email, senha):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+        page.goto("https://aistudio.google.com/")
+        page.click("text=Sign in")
+        page.fill("input[type='email']", email)
+        page.click("text=Next")
+        page.wait_for_timeout(3000)
+        page.fill("input[type='password']", senha)
+        page.click("text=Next")
+        page.wait_for_timeout(40000)
+        browser.close()
+
+email = st.text_input("Email")
+senha = st.text_input("Senha", type="password")
+if st.button("Iniciar Automação"):
+    run_automation(email, senha)
+    st.success("Automação finalizada!")
+🧠 Etapa 6: Boas Práticas
+Envolva interações em try/except para capturar falhas.
+
+Use page.screenshot(path="erro.png") ao tratar exceções.
+
+Adicione comentários claros e concisos.
+
+Teste em modo headed antes de rodar headless.
+
+Mantenha dependências atualizadas (pip install --upgrade playwright).
+
+🧭 Etapa 7: Próximos Passos
+Crie sua conta no Replit
+
+Monte o projeto com Playwright
+
+Configure suas variáveis de ambiente
+
+Rode e valide o login automatizado
+
+Compartilhe seu projeto ou dúvidas aqui
+
+Evolua para fluxos avançados de interação
+
+Você agora tem o manual completo para dominar a automação web com Playwright num ambiente 100% online. Me avise quando finalizar cada etapa ou se surgir qualquer dúvida, e vamos refinar juntos cada detalhe. Seu próximo nível de engenheiro de automação começa agora! 😎🚀
