@@ -47,6 +47,7 @@ def main():
         st.markdown("---")
         st.markdown("### ⚠️ Limitações do Ambiente")
         st.warning("No ambiente Replit, algumas dependências do navegador podem estar faltando. Isso pode causar erros durante a automação.")
+        st.info("💡 Use o botão 'Simular Automação' para ver uma demonstração completa do processo!")
         
         if st.button("🔧 Verificar Dependências"):
             check_browser_dependencies()
