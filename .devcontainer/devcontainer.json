@@ -3,13 +3,17 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
-  "settings": {
-    "terminal.integrated.shell.linux": "/bin/bash"
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.shell.linux": "/bin/bash"
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-playwright.playwright"
+      ]
+    }
   },
-  "extensions": [
-    "ms-python.python",
-    "ms-playwright.playwright"
-  ],
   "postCreateCommand": "pip install --upgrade pip && pip install -r requirements.txt && playwright install-deps && playwright install chromium",
   "forwardPorts": [5000],
   "remoteUser": "vscode"
