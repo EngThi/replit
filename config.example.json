@@ -1,0 +1,11 @@
+{
+  "google": {
+    "email": "seu_email@gmail.com",
+    "password": "sua_senha_ou_app_password"
+  },
+  "notes": [
+    "Renomeie este arquivo para config.json",
+    "Use senha de aplicativo se tiver 2FA",
+    "Adicione config.json no .gitignore"
+  ]
+}

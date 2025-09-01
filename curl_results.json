@@ -1,0 +1,11 @@
+{
+  "timestamp": 1755250198.1844335,
+  "results": {
+    "AI Studio Welcome": "LOGIN_REQUIRED",
+    "AI Studio Chat": "LOGIN_REQUIRED",
+    "Gemini": "LOGIN_REQUIRED",
+    "API Gemini": "SUSPICIOUS"
+  },
+  "accessible_count": 0,
+  "login_required_count": 3
+}

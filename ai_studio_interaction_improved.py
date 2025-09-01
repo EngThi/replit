@@ -1,384 +1,684 @@
 """
-Sistema melhorado de interação com Google AI Studio
-Versão mais robusta para encontrar elementos da interface
+Sistema de Interação com Google AI Studio (Versão Melhorada)
+Foca em URLs diretas e detecção robusta de elementos
 """
 
 import time
 import json
-from persistent_login import PersistentGoogleLogin
+import os
+from datetime import datetime
+from ai_studio_login_2fa import AIStudioLogin2FA
+from credentials_manager import CredentialsManager
 
-class AIStudioInteractionImproved(PersistentGoogleLogin):
-    def __init__(self):
-        super().__init__()
+class AIStudioInteraction(AIStudioLogin2FA):
+    def __init__(self, headless=True):
+        super().__init__(headless)
+        self.current_chat_url = None
+        self.conversation_history = []
+        self.interactions_dir = "/workspaces/replit/interactions"
+        self.credentials_manager = CredentialsManager()
+        self.ensure_interaction_dirs()
         
-    def debug_page_elements(self):
-        """Debug: Lista elementos da página para entender a estrutura"""
+    def ensure_interaction_dirs(self):
+        """Cria diretórios necessários"""
+        os.makedirs(self.interactions_dir, exist_ok=True)
+        os.makedirs(f"{self.interactions_dir}/screenshots", exist_ok=True)
+        os.makedirs(f"{self.interactions_dir}/conversations", exist_ok=True)
+    
+    def take_screenshot(self, name):
+        """Captura screenshot"""
         try:
-            print("🔍 ANALISANDO ELEMENTOS DA PÁGINA...")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            path = f"{self.interactions_dir}/screenshots/{name}_{timestamp}.png"
+            self.page.screenshot(path=path, full_page=True)
+            print(f"📸 Screenshot: {path}")
+            return path
+        except Exception as e:
+            print(f"❌ Erro screenshot: {e}")
+            return None
+    
+    def access_chat_directly(self):
+        """Acessa chat via URLs diretas com login automático se necessário"""
+        try:
+            print("🎯 Tentando acessar chat diretamente...")
             
-            # Capturar informações sobre elementos interativos
-            elements_info = self.page.evaluate("""
+            # URL específica que sabemos que funciona
+            target_url = "https://aistudio.google.com/u/3/prompts/new_chat"
+            
+            print(f"🔗 Tentando: {target_url}")
+            
+            self.page.goto(target_url, timeout=20000)
+            time.sleep(5)  # Aguardar carregamento
+            
+            final_url = self.page.url
+            print(f"🔗 URL final: {final_url}")
+            
+            # Se foi redirecionado para login, fazer login na mesma sessão
+            if "accounts.google.com" in final_url:
+                print("🔑 Redirecionado para login - fazendo login...")
+                
+                # Fazer login usando a mesma página atual
+                if self.do_login_on_current_page():
+                    print("✅ Login realizado na página atual")
+                    
+                    # Tentar novamente após login
+                    print(f"🔄 Tentando acessar chat novamente...")
+                    self.page.goto(target_url, timeout=20000)
+                    time.sleep(5)
+                    
+                    final_url = self.page.url
+                    print(f"🔗 URL final após login: {final_url}")
+                else:
+                    print("❌ Login falhou")
+                    return False
+            
+            # Verificar se chegamos ao chat
+            if "accounts.google.com" not in final_url:
+                # Procurar por campo de input
+                has_input = self.page.evaluate("""
+                    () => {
+                        const selectors = ['textarea', 'input[type="text"]', '[contenteditable="true"]'];
+                        for (const sel of selectors) {
+                            const elements = document.querySelectorAll(sel);
+                            for (const el of elements) {
+                                if (el.offsetParent && el.getBoundingClientRect().width > 100) {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+                """)
+                
+                if has_input:
+                    print(f"✅ Chat acessível!")
+                    self.current_chat_url = final_url
+                    self.take_screenshot("chat_ready")
+                    return True
+                else:
+                    print(f"⚠️ URL carregou mas sem campo de input")
+                    self.take_screenshot("no_input_found")
+            else:
+                print(f"⚠️ Ainda redirecionado para login após tentativa")
+            
+            return False
+            
+        except Exception as e:
+            print(f"❌ Erro geral: {e}")
+            return False
+    
+    def do_login_on_current_page(self):
+        """Faz login na página atual (sem inicializar novo navegador)"""
+        try:
+            print("🔑 Fazendo login na página atual...")
+            
+            # Verificar se estamos na página de login do Google
+            current_url = self.page.url
+            if "accounts.google.com" not in current_url:
+                print("❌ Não estamos na página de login")
+                return False
+            
+            # Aguardar página carregar completamente
+            time.sleep(3)
+            
+            # Verificar que tipo de página de login temos
+            page_type = self.page.evaluate("""
                 () => {
-                    const elements = [];
-                    
-                    // Procurar inputs e textareas
-                    document.querySelectorAll('input, textarea, [contenteditable="true"]').forEach(el => {
-                        if (el.offsetParent !== null) { // Visível
-                            elements.push({
-                                type: 'input',
-                                tag: el.tagName,
-                                type_attr: el.type,
-                                placeholder: el.placeholder,
-                                id: el.id,
-                                classes: el.className,
-                                text: el.textContent.slice(0, 50)
-                            });
-                        }
-                    });
-                    
-                    // Procurar botões
-                    document.querySelectorAll('button, [role="button"], a').forEach(el => {
-                        if (el.offsetParent !== null) {
-                            elements.push({
-                                type: 'button',
-                                tag: el.tagName,
-                                text: el.textContent.trim().slice(0, 50),
-                                id: el.id,
-                                classes: el.className,
-                                aria_label: el.getAttribute('aria-label')
-                            });
-                        }
-                    });
-                    
-                    return elements;
+                    const body = document.body.textContent.toLowerCase();
+                    if (body.includes('choose an account') || body.includes('escolher uma conta')) {
+                        return 'account_chooser';
+                    } else if (document.querySelector('input[type="email"]')) {
+                        return 'email_input';
+                    } else if (document.querySelector('input[type="password"]')) {
+                        return 'password_input';
+                    }
+                    return 'unknown';
                 }
             """)
             
-            print("📋 ELEMENTOS ENCONTRADOS:")
+            print(f"🔍 Tipo de página detectado: {page_type}")
             
-            inputs = [el for el in elements_info if el['type'] == 'input']
-            buttons = [el for el in elements_info if el['type'] == 'button']
-            
-            print(f"\n📝 INPUTS/TEXTAREAS ({len(inputs)}):")
-            for i, el in enumerate(inputs[:10]):  # Mostrar apenas os primeiros 10
-                print(f"  {i+1}. {el['tag']} - placeholder: '{el['placeholder']}' - classes: '{el['classes'][:50]}'")
-            
-            print(f"\n🔘 BOTÕES ({len(buttons)}):")
-            for i, el in enumerate(buttons[:15]):  # Mostrar apenas os primeiros 15
-                text = el['text'].replace('\n', ' ').strip()
-                print(f"  {i+1}. '{text}' - classes: '{el['classes'][:30]}'")
-            
-            return elements_info
-            
-        except Exception as e:
-            print(f"❌ Erro no debug: {e}")
-            return []
-    
-    def find_chat_interface(self):
-        """Encontra e navega para a interface de chat"""
-        try:
-            print("🔍 Procurando interface de chat...")
-            
-            # Primeiro, analisar a página atual
-            current_url = self.page.url
-            print(f"🔗 URL atual: {current_url}")
-            
-            # Se já estiver em uma página de chat, usar ela
-            if "chat" in current_url.lower() or "studio" in current_url.lower():
-                print("✅ Já está em interface compatível")
-                return True
-            
-            # Procurar links para chat/prompts
-            chat_links = [
-                "text=Prompts",
-                "text=Chat", 
-                "text=New prompt",
-                "text=Create",
-                "a[href*='prompt']",
-                "a[href*='chat']",
-                "[data-testid*='prompt']",
-                "[data-testid*='chat']"
-            ]
-            
-            for link in chat_links:
-                try:
-                    if self.page.is_visible(link, timeout=3000):
-                        print(f"✅ Encontrado link para chat: {link}")
-                        self.page.click(link)
-                        time.sleep(3)
-                        return True
-                except:
-                    continue
-            
-            # Se não encontrou links específicos, tentar URL direta
-            print("🔗 Tentando navegar diretamente para prompt...")
-            try:
-                self.page.goto("https://aistudio.google.com/app/prompts/new", timeout=30000)
-                time.sleep(5)
-                print("✅ Navegou para nova prompt")
-                return True
-            except:
-                pass
-            
-            # Tentar URL alternativa
-            try:
-                self.page.goto("https://aistudio.google.com/app/", timeout=30000)
-                time.sleep(5)
-                print("✅ Navegou para app principal")
-                return True
-            except:
-                pass
+            # Se é página de escolha de conta, tentar clicar na conta
+            if page_type == 'account_chooser':
+                print("👥 Página de escolha de conta detectada...")
                 
-            return False
+                # Procurar pela conta configurada
+                email = self.credentials_manager.get_email()
+                if email:
+                    # Tentar encontrar e clicar na conta
+                    account_clicked = self.page.evaluate(f"""
+                        () => {{
+                            const email = '{email}';
+                            // Procurar por elementos que contenham o email
+                            const elements = document.querySelectorAll('*');
+                            for (const el of elements) {{
+                                if (el.textContent.includes(email) && el.offsetParent) {{
+                                    el.click();
+                                    return true;
+                                }}
+                            }}
+                            
+                            // Fallback: procurar por qualquer elemento clicável que pareça uma conta
+                            const clickableElements = document.querySelectorAll('[data-identifier], [role="button"], div[jsaction]');
+                            for (const el of clickableElements) {{
+                                const text = el.textContent.toLowerCase();
+                                if (text.includes('@') || text.includes('conta') || text.includes('account')) {{
+                                    el.click();
+                                    return true;
+                                }}
+                            }}
+                            
+                            return false;
+                        }}
+                    """)
+                    
+                    if account_clicked:
+                        print("✅ Conta selecionada")
+                        time.sleep(3)
+                        
+                        # Verificar se precisa de senha
+                        has_password_field = self.page.evaluate("""
+                            () => {
+                                return document.querySelector('input[type="password"]') !== null;
+                            }
+                        """)
+                        
+                        if has_password_field:
+                            print("🔒 Campo de senha apareceu...")
+                            return self.fill_password_and_login()
+                        else:
+                            # Verificar se já logou
+                            time.sleep(3)
+                            final_url = self.page.url
+                            if "accounts.google.com" not in final_url:
+                                print("✅ Login concluído sem senha adicional!")
+                                return True
+                    else:
+                        print("⚠️ Não foi possível selecionar conta automaticamente")
+                
+            # Se tem campo de email, preencher
+            elif page_type == 'email_input':
+                return self.fill_email_and_continue()
             
+            # Se tem campo de senha, preencher
+            elif page_type == 'password_input':
+                return self.fill_password_and_login()
+            
+            # Página desconhecida - aguardar manual
+            else:
+                print("⚠️ Tipo de página de login não reconhecido")
+                self.take_screenshot("unknown_login_page")
+                print("📸 Screenshot salvo para análise")
+                print("⏳ Aguardando 30 segundos para login manual...")
+                time.sleep(30)
+                
+                final_url = self.page.url
+                if "accounts.google.com" not in final_url:
+                    print("✅ Login manual concluído!")
+                    return True
+                else:
+                    print("⚠️ Ainda na página de login")
+                    return False
+                
         except Exception as e:
-            print(f"❌ Erro ao encontrar chat: {e}")
+            print(f"❌ Erro no login: {e}")
             return False
     
-    def find_text_input_advanced(self):
-        """Busca avançada por campo de texto"""
+    def fill_email_and_continue(self):
+        """Preenche email e continua"""
         try:
-            print("🔍 Busca avançada por campo de texto...")
+                # Verificar se temos credenciais configuradas
+                email = self.credentials_manager.get_email()
+                password = self.credentials_manager.get_password()
+                
+                if email and password:
+                    print(f"✅ Usando credenciais configuradas para: {email}")
+                    
+                    # Preencher email
+                    print("📧 Preenchendo email...")
+                    self.page.fill('input[type="email"]', email)
+                    time.sleep(1)
+                    
+                    # Clicar em Next
+                    print("➡️ Clicando em Avançar...")
+                    time.sleep(2)  # Aguardar um pouco mais
+                    
+                    # Tentar múltiplos seletores para o botão Next
+                    next_selectors = [
+                        '#identifierNext',
+                        'button:has-text("Next")',
+                        'button:has-text("Avançar")',
+                        'button:has-text("Próxima")',
+                        'button[id*="next"]',
+                        'button[id*="Next"]',
+                        'input[type="submit"]',
+                        'button[type="submit"]',
+                        '.VfPpkd-LgbsSe'  # Classe comum dos botões Google
+                    ]
+                    
+                    button_clicked = False
+                    for selector in next_selectors:
+                        try:
+                            # Verificar se botão existe e está visível
+                            button_exists = self.page.evaluate(f"""
+                                () => {{
+                                    const btn = document.querySelector('{selector}');
+                                    return btn && btn.offsetParent !== null;
+                                }}
+                            """)
+                            
+                            if button_exists:
+                                print(f"   🎯 Usando seletor: {selector}")
+                                self.page.click(selector)
+                                button_clicked = True
+                                break
+                        except Exception as e:
+                            print(f"   ⚠️ Seletor {selector} falhou: {str(e)[:50]}...")
+                            continue
+                    
+                    if not button_clicked:
+                        print("❌ Nenhum botão Avançar encontrado")
+                        
+                        # Tentar Enter como fallback
+                        print("⚠️ Tentando Enter como alternativa...")
+                        try:
+                            self.page.press('input[type="email"]', 'Enter')
+                            button_clicked = True
+                        except:
+                            print("❌ Enter também falhou")
+                            return False
+                    
+                    if button_clicked:
+                        time.sleep(4)  # Aguardar navegação
+                    else:
+                        return False
+                    
+                    # Aguardar página de senha e preencher
+                    print("🔒 Aguardando página de senha...")
+                    time.sleep(3)
+                    
+                    # Verificar se chegou na página de senha
+                    has_password_field = self.page.evaluate("""
+                        () => {
+                            return document.querySelector('input[type="password"]') !== null;
+                        }
+                    """)
+                    
+                    if has_password_field:
+                        print("🔒 Preenchendo senha...")
+                        self.page.fill('input[type="password"]', password)
+                        time.sleep(1)
+                        
+                        # Clicar em entrar
+                        print("🔑 Fazendo login...")
+                        time.sleep(2)
+                        
+                        # Tentar múltiplos seletores para botão de login
+                        login_selectors = [
+                            '#passwordNext',
+                            'button:has-text("Next")',
+                            'button:has-text("Entrar")',
+                            'button:has-text("Sign in")',
+                            'button[id*="next"]',
+                            'button[id*="password"]',
+                            'input[type="submit"]',
+                            'button[type="submit"]',
+                            '.VfPpkd-LgbsSe'
+                        ]
+                        
+                        login_clicked = False
+                        for selector in login_selectors:
+                            try:
+                                button_exists = self.page.evaluate(f"""
+                                    () => {{
+                                        const btn = document.querySelector('{selector}');
+                                        return btn && btn.offsetParent !== null;
+                                    }}
+                                """)
+                                
+                                if button_exists:
+                                    print(f"   🎯 Usando seletor: {selector}")
+                                    self.page.click(selector)
+                                    login_clicked = True
+                                    break
+                            except Exception as e:
+                                print(f"   ⚠️ Seletor {selector} falhou: {str(e)[:50]}...")
+                                continue
+                        
+                        if not login_clicked:
+                            print("⚠️ Tentando Enter como alternativa...")
+                            try:
+                                self.page.press('input[type="password"]', 'Enter')
+                                login_clicked = True
+                            except:
+                                print("❌ Botão de login não encontrado")
+                                return False
+                        
+                        if login_clicked:
+                            time.sleep(3)  # Aguardar um pouco menos primeiro
+                            
+                            # SCREENSHOT IMEDIATAMENTE após login
+                            print("📸 Capturando tela após envio da senha...")
+                            screenshot_path = self.take_screenshot("after_password_submit")
+                            print(f"📸 Screenshot salvo: {screenshot_path}")
+                            print("👀 VERIFIQUE A IMAGEM PARA VER SE APARECEU 2FA!")
+                            print("⏳ Aguardando mais um momento para processar...")
+                            
+                            time.sleep(3)  # Aguardar mais um pouco
+                        else:
+                            return False
+                        
+                        # Verificar se login foi bem-sucedido ou se tem 2FA
+                        final_url = self.page.url
+                        print(f"🔗 URL após login: {final_url}")
+                        
+                        # Capturar screenshot do estado atual
+                        print("📸 Capturando tela do estado atual...")
+                        screenshot_path2 = self.take_screenshot("login_result_state")
+                        print(f"📸 Screenshot estado: {screenshot_path2}")
+                        
+                        if "accounts.google.com" not in final_url:
+                            print("✅ Login automático concluído com sucesso!")
+                            return True
+                        elif "challenge" in final_url or "2fa" in final_url.lower() or "verify" in final_url.lower():
+                            print("🔐 2FA/Verificação detectada!")
+                            print("📱 Verifique seu telefone ou o screenshot para autorizar")
+                            
+                            # Aguardar resolução manual do 2FA
+                            print("⏳ Aguardando 90 segundos para você resolver 2FA...")
+                            
+                            # Verificar a cada 10 segundos se 2FA foi resolvido
+                            for i in range(9):  # 9 x 10 = 90 segundos
+                                time.sleep(10)
+                                current_url = self.page.url
+                                
+                                if "accounts.google.com" not in current_url:
+                                    print(f"✅ 2FA resolvido após {(i+1)*10} segundos!")
+                                    # Screenshot de sucesso
+                                    self.take_screenshot("2fa_resolved_success")
+                                    return True
+                                
+                                # Screenshot a cada 30 segundos para acompanhar
+                                if (i+1) % 3 == 0:
+                                    self.take_screenshot(f"2fa_waiting_{(i+1)*10}s")
+                                    print(f"⏳ Ainda aguardando 2FA... ({(i+1)*10}s)")
+                            
+                            # Verificação final
+                            final_check_url = self.page.url
+                            if "accounts.google.com" not in final_check_url:
+                                print("✅ 2FA resolvido no tempo limite!")
+                                return True
+                            else:
+                                print("⚠️ 2FA ainda pendente após 90 segundos")
+                                self.take_screenshot("2fa_timeout")
+                                return False
+                        else:
+                            print("⚠️ Login pode ter falhado - ainda na página de login")
+                            return False
+                    else:
+                        print("❌ Página de senha não carregou")
+                        return False
+                else:
+                    print("⚠️ Credenciais não configuradas - aguardando login manual")
+                    print("ℹ️ Configure credenciais ou faça login manualmente")
+                    
+                    # Aguardar login manual
+                    print("⏳ Aguardando 30 segundos para login manual...")
+                    time.sleep(30)
+                    
+                    # Verificar se login foi concluído
+                    final_url = self.page.url
+                    if "accounts.google.com" not in final_url:
+                        print("✅ Login manual concluído!")
+                        return True
+                    else:
+                        print("⚠️ Ainda na página de login")
+                        return False
+            else:
+                print("✅ Email já preenchido, continuando...")
             
-            # Aguardar página carregar
+            # Clicar em Next/Avançar
+            print("➡️ Clicando em Avançar...")
+            try:
+                next_button = self.page.locator('button:has-text("Next"), button:has-text("Avançar"), #identifierNext')
+                next_button.click()
+                time.sleep(3)
+            except:
+                print("❌ Botão Avançar não encontrado")
+                return False
+            
+            # Aguardar página de senha
+            print("🔒 Aguardando página de senha...")
             time.sleep(3)
             
-            # Estratégia 1: Procurar por atributos comuns
-            input_selectors = [
-                "textarea[placeholder*='message']",
-                "textarea[placeholder*='prompt']",
-                "textarea[placeholder*='question']",
-                "textarea[placeholder*='ask']",
-                "textarea[placeholder*='type']",
-                "textarea[placeholder*='enter']",
-                "textarea[placeholder*='write']",
-                "[contenteditable='true']",
-                "textarea:not([style*='display: none'])",
-                "input[type='text']:not([style*='display: none'])",
-                ".chat-input textarea",
-                ".prompt-input textarea",
-                ".message-input textarea"
-            ]
-            
-            for selector in input_selectors:
-                try:
-                    if self.page.is_visible(selector, timeout=2000):
-                        print(f"✅ Campo encontrado (método 1): {selector}")
-                        return selector
-                except:
-                    continue
-            
-            # Estratégia 2: JavaScript para encontrar campos grandes
-            text_field = self.page.evaluate("""
+            # Verificar se chegou na página de senha
+            has_password_field = self.page.evaluate("""
                 () => {
-                    // Procurar textareas grandes (prováveis campos de prompt)
-                    const textareas = Array.from(document.querySelectorAll('textarea'));
-                    for (const textarea of textareas) {
-                        if (textarea.offsetParent !== null) { // Visível
-                            const rect = textarea.getBoundingClientRect();
-                            if (rect.height > 50 || rect.width > 200) { // Campo razoavelmente grande
-                                return {
-                                    selector: `textarea${textarea.id ? '#' + textarea.id : ''}${textarea.className ? '.' + textarea.className.split(' ')[0] : ''}`,
-                                    placeholder: textarea.placeholder,
-                                    size: `${rect.width}x${rect.height}`
-                                };
+                    return document.querySelector('input[type="password"]') !== null;
+                }
+            """)
+            
+            if has_password_field:
+                print("🔒 Campo de senha encontrado")
+                print("⚠️ Senha automática não implementada por segurança")
+                print("ℹ️ Complete o login manualmente ou configure credenciais")
+                
+                # Aguardar um tempo para login manual
+                print("⏳ Aguardando 30 segundos para login manual...")
+                time.sleep(30)
+                
+                # Verificar se login foi concluído
+                final_url = self.page.url
+                if "accounts.google.com" not in final_url:
+                    print("✅ Login parece ter sido concluído!")
+                    return True
+                else:
+                    print("⚠️ Ainda na página de login")
+                    return False
+            else:
+                print("❌ Página de senha não carregou")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Erro no login: {e}")
+            return False
+    
+    def find_input_field(self):
+        """Encontra campo de input robusto"""
+        try:
+            print("🔍 Procurando campo de entrada...")
+            
+            # Aguardar um pouco
+            time.sleep(2)
+            
+            # Usar JavaScript para encontrar o melhor campo
+            input_info = self.page.evaluate("""
+                () => {
+                    const selectors = [
+                        'textarea',
+                        'input[type="text"]',
+                        '[contenteditable="true"]',
+                        '[role="textbox"]'
+                    ];
+                    
+                    const candidates = [];
+                    
+                    for (const selector of selectors) {
+                        const elements = document.querySelectorAll(selector);
+                        for (const el of elements) {
+                            if (el.offsetParent) { // Visível
+                                const rect = el.getBoundingClientRect();
+                                if (rect.width > 100 && rect.height > 20) {
+                                    candidates.push({
+                                        element: el,
+                                        selector: selector,
+                                        width: rect.width,
+                                        height: rect.height,
+                                        id: el.id,
+                                        className: el.className,
+                                        placeholder: el.placeholder || ''
+                                    });
+                                }
                             }
                         }
                     }
                     
-                    // Procurar divs editáveis
-                    const editables = Array.from(document.querySelectorAll('[contenteditable="true"]'));
-                    for (const editable of editables) {
-                        if (editable.offsetParent !== null) {
-                            const rect = editable.getBoundingClientRect();
-                            if (rect.height > 30) {
-                                return {
-                                    selector: `[contenteditable="true"]${editable.id ? '#' + editable.id : ''}`,
-                                    placeholder: editable.getAttribute('data-placeholder') || 'contenteditable',
-                                    size: `${rect.width}x${rect.height}`
-                                };
+                    // Escolher o maior campo (mais provável de ser o principal)
+                    if (candidates.length > 0) {
+                        candidates.sort((a, b) => (b.width * b.height) - (a.width * a.height));
+                        const best = candidates[0];
+                        
+                        // Criar seletor específico
+                        let specific_selector = best.selector;
+                        if (best.id) {
+                            specific_selector = `#${best.id}`;
+                        } else if (best.className) {
+                            const firstClass = best.className.split(' ')[0];
+                            if (firstClass) {
+                                specific_selector = `.${firstClass}`;
                             }
                         }
+                        
+                        return {
+                            selector: specific_selector,
+                            placeholder: best.placeholder,
+                            width: best.width,
+                            height: best.height
+                        };
                     }
                     
                     return null;
                 }
             """)
             
-            if text_field:
-                print(f"✅ Campo encontrado (método 2): {text_field['selector']} - {text_field['placeholder']} ({text_field['size']})")
-                return text_field['selector']
-            
-            # Estratégia 3: Pegar qualquer textarea visível
-            all_textareas = self.page.evaluate("""
-                () => {
-                    const textareas = Array.from(document.querySelectorAll('textarea, [contenteditable="true"]'));
-                    return textareas.map((el, index) => ({
-                        index,
-                        visible: el.offsetParent !== null,
-                        placeholder: el.placeholder || el.getAttribute('data-placeholder') || '',
-                        tag: el.tagName,
-                        id: el.id,
-                        classes: el.className
-                    })).filter(el => el.visible);
-                }
-            """)
-            
-            if all_textareas:
-                print(f"✅ Encontrados {len(all_textareas)} campos de texto")
-                # Usar o primeiro textarea visível
-                first_textarea = all_textareas[0]
-                if first_textarea['id']:
-                    selector = f"#{first_textarea['id']}"
-                elif first_textarea['classes']:
-                    selector = f".{first_textarea['classes'].split()[0]}"
-                else:
-                    selector = "textarea"
+            if input_info:
+                print(f"✅ Campo encontrado: {input_info['selector']}")
+                print(f"   📐 Tamanho: {input_info['width']}x{input_info['height']}")
+                print(f"   📝 Placeholder: '{input_info['placeholder']}'")
+                return input_info['selector']
+            else:
+                print("❌ Nenhum campo adequado encontrado")
+                return None
                 
-                print(f"✅ Usando primeiro textarea: {selector}")
-                return selector
-            
-            print("❌ Nenhum campo de texto encontrado")
-            return None
-            
         except Exception as e:
-            print(f"❌ Erro na busca avançada: {e}")
+            print(f"❌ Erro ao procurar campo: {e}")
             return None
     
-    def send_message_improved(self, message):
-        """Versão melhorada para enviar mensagem"""
+    def send_message_robust(self, message):
+        """Envia mensagem de forma robusta"""
         try:
-            print(f"💬 Enviando: '{message}'")
+            print(f"💬 Enviando: '{message[:50]}...'")
             
-            # Encontrar campo de texto
-            text_field = self.find_text_input_advanced()
-            
-            if not text_field:
-                print("❌ Campo de texto não encontrado após busca avançada")
+            # Encontrar campo
+            input_selector = self.find_input_field()
+            if not input_selector:
+                print("❌ Campo não encontrado")
                 return False
             
-            # Clicar no campo
-            print(f"👆 Clicando no campo: {text_field}")
-            self.page.click(text_field)
-            time.sleep(1)
+            # Focar e limpar
+            print(f"🎯 Usando campo: {input_selector}")
+            self.page.click(input_selector)
+            time.sleep(0.5)
             
-            # Limpar campo
-            self.page.fill(text_field, "")
+            # Limpar qualquer texto existente
+            self.page.evaluate(f"""
+                () => {{
+                    const field = document.querySelector('{input_selector}');
+                    if (field) {{
+                        field.value = '';
+                        if (field.textContent !== undefined) field.textContent = '';
+                        field.focus();
+                    }}
+                }}
+            """)
+            
             time.sleep(0.5)
             
             # Digitar mensagem
-            print("⌨️ Digitando mensagem...")
-            self.page.type(text_field, message, delay=30)
+            print("⌨️ Digitando...")
+            self.page.type(input_selector, message, delay=50)
             time.sleep(1)
             
-            # Tentar enviar
-            send_methods = [
-                # Método 1: Procurar botão de envio
-                lambda: self._try_send_button(),
-                # Método 2: Enter simples
-                lambda: self.page.press(text_field, "Enter"),
-                # Método 3: Ctrl+Enter (comum em prompts)
-                lambda: self.page.press(text_field, "Control+Enter"),
-                # Método 4: Shift+Enter
-                lambda: self.page.press(text_field, "Shift+Enter")
-            ]
+            # Screenshot antes de enviar
+            self.take_screenshot("before_send")
             
-            for i, method in enumerate(send_methods):
-                try:
-                    print(f"📤 Tentativa de envio {i+1}...")
-                    method()
-                    time.sleep(2)
-                    
-                    # Verificar se mensagem foi enviada (campo limpo ou loading)
-                    current_value = self.page.input_value(text_field) if "contenteditable" not in text_field else ""
-                    
-                    if not current_value or len(current_value.strip()) == 0:
-                        print("✅ Mensagem aparenta ter sido enviada (campo limpo)")
-                        return True
-                    
-                except Exception as e:
-                    print(f"⚠️ Método {i+1} falhou: {e}")
-                    continue
+            # Enviar com Enter
+            print("📤 Enviando com Enter...")
+            self.page.press(input_selector, "Enter")
+            time.sleep(3)
             
-            print("⚠️ Mensagem digitada mas envio incerto")
-            return True  # Assumir sucesso parcial
+            # Verificar se campo foi limpo (indica sucesso)
+            field_empty = self.page.evaluate(f"""
+                () => {{
+                    const field = document.querySelector('{input_selector}');
+                    if (field) {{
+                        const value = field.value || field.textContent || '';
+                        return value.trim() === '';
+                    }}
+                    return false;
+                }}
+            """)
+            
+            if field_empty:
+                print("✅ Mensagem enviada (campo limpo)")
+                
+                # Adicionar ao histórico
+                self.conversation_history.append({
+                    'type': 'user',
+                    'content': message,
+                    'timestamp': datetime.now().isoformat()
+                })
+                
+                self.take_screenshot("after_send")
+                return True
+            else:
+                print("⚠️ Campo não foi limpo - possível falha")
+                return False
             
         except Exception as e:
-            print(f"❌ Erro ao enviar mensagem: {e}")
+            print(f"❌ Erro ao enviar: {e}")
             return False
     
-    def _try_send_button(self):
-        """Tenta encontrar e clicar botão de envio"""
-        send_selectors = [
-            "button[type='submit']",
-            "button:has-text('Send')",
-            "button:has-text('Run')",
-            "button:has-text('Generate')",
-            "button:has-text('Submit')",
-            "[aria-label*='send']",
-            "[aria-label*='submit']",
-            "[aria-label*='run']",
-            ".send-button",
-            ".submit-button",
-            ".run-button"
-        ]
-        
-        for selector in send_selectors:
-            try:
-                if self.page.is_visible(selector, timeout=1000):
-                    self.page.click(selector)
-                    return True
-            except:
-                continue
-        
-        return False
-    
-    def wait_for_response_improved(self, timeout=45):
-        """Aguarda resposta com detecção melhorada"""
+    def wait_for_ai_response(self, timeout=60):
+        """Aguarda resposta do AI"""
         try:
-            print("⏳ Aguardando resposta...")
+            print("🤖 Aguardando resposta...")
             start_time = time.time()
             
             while time.time() - start_time < timeout:
-                # Procurar indicadores de loading
-                loading_indicators = [
-                    ".loading",
-                    ".spinner",
-                    "[aria-label*='loading']",
-                    "text=Generating",
-                    "text=Loading"
-                ]
+                time.sleep(3)
                 
-                is_loading = False
-                for indicator in loading_indicators:
-                    try:
-                        if self.page.is_visible(indicator, timeout=500):
-                            is_loading = True
-                            break
-                    except:
-                        continue
-                
-                if is_loading:
-                    print("🔄 Detectado loading...")
-                    time.sleep(2)
-                    continue
-                
-                # Procurar resposta
-                response_text = self.page.evaluate("""
+                # Procurar resposta na página
+                response = self.page.evaluate("""
                     () => {
-                        // Procurar por texto que aparenta ser resposta
-                        const candidates = Array.from(document.querySelectorAll('div, p, span, pre'));
+                        // Selectors comuns para respostas de AI
+                        const responseSelectors = [
+                            '[data-message-author-role="model"]',
+                            '.model-response',
+                            '.ai-response',
+                            '[data-testid*="response"]',
+                            '.response-content'
+                        ];
                         
-                        for (const el of candidates) {
+                        // Tentar seletores específicos primeiro
+                        for (const selector of responseSelectors) {
+                            const element = document.querySelector(selector);
+                            if (element && element.textContent.trim().length > 10) {
+                                return element.textContent.trim();
+                            }
+                        }
+                        
+                        // Fallback: procurar por blocos de texto que parecem respostas
+                        const allElements = document.querySelectorAll('div, p, span');
+                        for (const el of allElements) {
                             const text = el.textContent.trim();
-                            
-                            // Ignorar elementos muito pequenos ou que são menus/UI
-                            if (text.length > 50 && text.length < 5000) {
-                                // Verificar se não é texto de interface
-                                if (!text.includes('Google AI Studio') && 
-                                    !text.includes('Settings') && 
-                                    !text.includes('Menu') &&
-                                    !text.includes('API key')) {
+                            // Critérios para identificar uma resposta:
+                            // - Texto longo o suficiente
+                            // - Não é nossa mensagem original
+                            // - Contém palavras comuns de resposta
+                            if (text.length > 30 && text.length < 10000) {
+                                const hasResponseWords = /\\b(hello|olá|i|eu|can|posso|help|ajud|yes|sim|no|não)\\b/i.test(text);
+                                if (hasResponseWords && !text.includes('Digite') && !text.includes('Enviando')) {
                                     return text;
                                 }
                             }
@@ -388,103 +688,138 @@ class AIStudioInteractionImproved(PersistentGoogleLogin):
                     }
                 """)
                 
-                if response_text and len(response_text) > 20:
-                    print(f"✅ Possível resposta encontrada ({len(response_text)} chars)")
-                    return response_text
+                if response:
+                    print(f"✅ Resposta encontrada ({len(response)} chars)")
+                    print(f"📝 Início: {response[:100]}...")
+                    
+                    # Adicionar ao histórico
+                    self.conversation_history.append({
+                        'type': 'assistant',
+                        'content': response,
+                        'timestamp': datetime.now().isoformat()
+                    })
+                    
+                    self.take_screenshot("response_received")
+                    return response
                 
-                time.sleep(1)
+                elapsed = int(time.time() - start_time)
+                print(f"⏳ Aguardando... ({elapsed}s)")
             
-            print("⏰ Timeout na espera da resposta")
-            
-            # Capturar qualquer texto longo na página como fallback
-            fallback_text = self.page.evaluate("""
-                () => {
-                    const text = document.body.textContent;
-                    return text.length > 100 ? text.slice(-500) : text; // Últimos 500 chars
-                }
-            """)
-            
-            return fallback_text
+            print("⏰ Timeout - resposta não encontrada")
+            return None
             
         except Exception as e:
-            print(f"❌ Erro ao aguardar resposta: {e}")
+            print(f"❌ Erro aguardando resposta: {e}")
             return None
     
-    def full_interaction(self, message):
-        """Interação completa melhorada"""
+    def save_conversation(self):
+        """Salva conversa"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"conversation_{timestamp}.json"
+            filepath = f"{self.interactions_dir}/conversations/{filename}"
+            
+            data = {
+                'timestamp': datetime.now().isoformat(),
+                'chat_url': self.current_chat_url,
+                'conversation': self.conversation_history
+            }
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            print(f"💾 Conversa salva: {filename}")
+            return filepath
+            
+        except Exception as e:
+            print(f"❌ Erro ao salvar: {e}")
+            return None
+    
+    def complete_interaction(self, message):
+        """Executa interação completa"""
         try:
             print("🚀 INTERAÇÃO COMPLETA COM AI STUDIO")
-            print("=" * 50)
+            print("=" * 45)
             
-            # 1. Verificar login
-            if not self.check_if_logged_in():
-                print("❌ Faça login primeiro: python persistent_login.py")
+            # 1. Inicializar
+            self.initialize_browser()
+            
+            # 2. Acessar chat (que fará login se necessário)
+            if not self.access_chat_directly():
+                print("❌ Não foi possível acessar chat")
                 return None
             
-            # 2. Navegar para interface de chat
-            if not self.find_chat_interface():
-                print("⚠️ Usando página atual")
+            print("✅ Chat acessível")
             
-            # 3. Debug da página
-            self.debug_page_elements()
-            
-            # 4. Capturar screenshot antes
-            self.page.screenshot(path="before_interaction.png")
-            print("📸 Screenshot 'antes': before_interaction.png")
-            
-            # 5. Enviar mensagem
-            if not self.send_message_improved(message):
+            # 3. Enviar mensagem
+            if not self.send_message_robust(message):
                 print("❌ Falha ao enviar mensagem")
                 return None
             
-            # 6. Capturar screenshot após envio
-            self.page.screenshot(path="after_send.png")
-            print("📸 Screenshot 'após envio': after_send.png")
+            print("✅ Mensagem enviada")
             
-            # 7. Aguardar resposta
-            response = self.wait_for_response_improved()
+            # 4. Aguardar resposta
+            response = self.wait_for_ai_response()
             
-            # 8. Screenshot final
-            self.page.screenshot(path="final_interaction.png")
-            print("📸 Screenshot final: final_interaction.png")
+            # 5. Salvar
+            conversation_file = self.save_conversation()
             
             if response:
                 print("\n🎉 INTERAÇÃO CONCLUÍDA!")
                 print("=" * 30)
-                print(f"📤 Sua mensagem: {message}")
-                print(f"📥 Resposta: {response[:300]}...")
-                return response
+                print(f"💬 Pergunta: {message}")
+                print(f"🤖 Resposta: {response[:150]}...")
+                print(f"📁 Salvo em: {conversation_file}")
+                
+                return {
+                    'success': True,
+                    'question': message,
+                    'response': response,
+                    'file': conversation_file
+                }
             else:
-                print("\n⚠️ Interação parcial")
-                return "Mensagem enviada - verifique screenshots"
+                print("\n⚠️ Mensagem enviada mas resposta não capturada")
+                return {
+                    'success': False,
+                    'question': message,
+                    'response': None,
+                    'file': conversation_file
+                }
                 
         except Exception as e:
             print(f"❌ Erro na interação: {e}")
             return None
 
-def test_improved_interaction():
-    """Teste da versão melhorada"""
-    print("🧪 TESTE DE INTERAÇÃO MELHORADA")
-    print("=" * 40)
+def main():
+    """Função principal para teste"""
+    print("🎯 TESTE DE INTERAÇÃO AI STUDIO")
+    print("=" * 35)
     
-    ai = AIStudioInteractionImproved()
+    interaction = AIStudioInteraction(headless=True)
     
     try:
-        ai.initialize_with_profile()
-        
+        # Solicitar mensagem
         message = input("\n💬 Sua pergunta (Enter para exemplo): ").strip()
         if not message:
-            message = "Qual é a capital do Brasil?"
+            message = "Olá! Me explique brevemente como você funciona."
         
-        result = ai.full_interaction(message)
+        print(f"\n🎯 Pergunta: '{message}'")
         
-        if result:
-            print(f"\n✅ Resultado: {result[:200]}...")
+        # Executar
+        result = interaction.complete_interaction(message)
+        
+        if result and result['success']:
+            print(f"\n🎉 SUCESSO!")
+            print(f"📁 Arquivos em: {interaction.interactions_dir}")
         else:
-            print("\n❌ Sem resultado")
+            print(f"\n⚠️ Interação incompleta")
             
+    except KeyboardInterrupt:
+        print("\n⚠️ Interrompido")
+    except Exception as e:
+        print(f"\n❌ Erro: {e}")
     finally:
-        ai.cleanup()
+        interaction.cleanup()
 
 if __name__ == "__main__":
-    test_improved_interaction()
+    main()

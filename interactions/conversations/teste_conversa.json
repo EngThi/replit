@@ -1,0 +1,18 @@
+{
+  "timestamp": "2025-08-14T21:54:46.486822",
+  "chat_url": null,
+  "history": [
+    {
+      "type": "user_message",
+      "content": "Teste de mensagem",
+      "timestamp": "2025-08-14T12:00:00"
+    },
+    {
+      "type": "ai_response",
+      "content": "Resposta de teste",
+      "timestamp": "2025-08-14T12:00:05"
+    }
+  ],
+  "total_messages": 1,
+  "total_responses": 1
+}
