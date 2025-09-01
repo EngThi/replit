@@ -69,3 +69,6 @@ browser_profile/
 
 # Node modules
 node_modules/
+
+# Interaction logs and screenshots
+interactions/

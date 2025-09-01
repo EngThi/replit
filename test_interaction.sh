@@ -5,18 +5,18 @@ echo "🤖 TESTE DE INTERAÇÃO COM AI STUDIO"
 echo "===================================="
 
 # Configurar ambiente Python
-PYTHON_CMD="/workspaces/replit/venv/bin/python"
+PYTHON_CMD="python"
 
 # Verificar se ambiente está configurado
-if [ ! -f "$PYTHON_CMD" ]; then
-    echo "❌ Ambiente Python não encontrado"
-    echo "💡 Execute primeiro: python -m venv venv && source venv/bin/activate"
+if ! command -v $PYTHON_CMD &> /dev/null
+then
+    echo "❌ Comando Python não encontrado"
     exit 1
 fi
 
 # Criar diretório de interações se não existir
-mkdir -p /workspaces/replit/interactions/screenshots
-mkdir -p /workspaces/replit/interactions/conversations
+mkdir -p interactions/screenshots
+mkdir -p interactions/conversations
 
 echo ""
 echo "🎯 OPÇÕES DE TESTE:"
@@ -30,7 +30,7 @@ read -p "Escolha uma opção (1-4): " choice
 case $choice in
     1)
         echo "🧪 Executando testes completos..."
-        $PYTHON_CMD /workspaces/replit/test_interaction_system.py
+        $PYTHON_CMD test_interaction_system.py
         ;;
     2)
         echo "⚡ Interação rápida..."
@@ -43,7 +43,7 @@ case $choice in
         
         $PYTHON_CMD -c "
 import sys
-sys.path.append('/workspaces/replit')
+sys.path.append('.')
 from ai_studio_interaction_complete import AIStudioInteraction
 
 interaction = AIStudioInteraction(headless=True)
@@ -63,7 +63,7 @@ finally:
         echo "🏠 Testando navegação e criação de chat..."
         $PYTHON_CMD -c "
 import sys
-sys.path.append('/workspaces/replit')
+sys.path.append('.')
 from ai_studio_interaction_complete import AIStudioInteraction
 
 interaction = AIStudioInteraction(headless=True)
@@ -105,7 +105,7 @@ finally:
         ;;
     4)
         echo "🎯 Demo interativo completo..."
-        $PYTHON_CMD /workspaces/replit/ai_studio_interaction_complete.py
+        $PYTHON_CMD ai_studio_interaction_complete.py
         ;;
     *)
         echo "❌ Opção inválida"
@@ -116,6 +116,6 @@ esac
 echo ""
 echo "✅ Teste concluído!"
 echo "📁 Verifique arquivos em:"
-echo "   📸 Screenshots: /workspaces/replit/interactions/screenshots/"
-echo "   💬 Conversas: /workspaces/replit/interactions/conversations/"
-echo "   📊 Logs: /workspaces/replit/interactions/interaction_log.json"
+echo "   📸 Screenshots: interactions/screenshots/"
+echo "   💬 Conversas: interactions/conversations/"
+echo "   📊 Logs: interactions/interaction_log.json"

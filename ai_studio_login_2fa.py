@@ -21,8 +21,8 @@ class AIStudioLogin2FA:
             headless (bool): False para mostrar navegador (útil para debug)
         """
         self.headless = headless
-        self.user_data_dir = "/workspaces/replit/browser_profile"
-        self.session_file = "/workspaces/replit/session_data.json"
+        self.user_data_dir = "browser_profile"
+        self.session_file = "session_data.json"
         self.playwright = None
         self.browser = None
         self.context = None
@@ -31,7 +31,6 @@ class AIStudioLogin2FA:
     def ensure_directories(self):
         """Cria diretórios necessários"""
         os.makedirs(self.user_data_dir, exist_ok=True)
-        os.makedirs(os.path.dirname(self.session_file), exist_ok=True)
         
     def initialize_browser(self):
         """Inicializa navegador com perfil persistente"""
@@ -42,7 +41,6 @@ class AIStudioLogin2FA:
             # Configurações otimizadas para Docker/Alpine
             launch_options = {
                 'headless': self.headless,
-                'executable_path': '/usr/bin/chromium-browser',
                 'args': [
                     '--no-sandbox',
                     '--disable-dev-shm-usage',

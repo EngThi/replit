@@ -6,16 +6,11 @@ Permite navegar, criar chats e enviar mensagens após login bem-sucedido
 import time
 import json
 import os
+import re
 from datetime import datetime
 from ai_studio_login_2fa import AIStudioLogin2FA
 
-class AIStudioInter                        current_url = self.page.url
-                        is_chat_page = ("chat" in current_url.lower() or 
-                                       "new" in current_url.lower() or 
-                                       "prompts" in current_url.lower())
-                        is_not_login = "accounts.google.com" not in current_url
-                        
-                        if is_chat_page and is_not_login:n(AIStudioLogin2FA):
+class AIStudioInteraction(AIStudioLogin2FA):
     def __init__(self, headless=True):
         """
         Inicializa sistema de interação com AI Studio
@@ -24,14 +19,50 @@ class AIStudioInter                        current_url = self.page.url
         super().__init__(headless)
         self.current_chat_url = None
         self.conversation_history = []
-        self.interactions_dir = "/workspaces/replit/interactions"
+        self.interactions_dir = "interactions"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_file = f"{self.interactions_dir}/logs/log_{timestamp}.json"
         self.ensure_interaction_dirs()
         
     def ensure_interaction_dirs(self):
-        """Cria diretórios para salvar interações"""
+        """Cria e limpa os diretórios de interação."""
+        screenshots_dir = f"{self.interactions_dir}/screenshots"
+        logs_dir = f"{self.interactions_dir}/logs"
+        conversations_dir = f"{self.interactions_dir}/conversations"
+
         os.makedirs(self.interactions_dir, exist_ok=True)
-        os.makedirs(f"{self.interactions_dir}/screenshots", exist_ok=True)
-        os.makedirs(f"{self.interactions_dir}/conversations", exist_ok=True)
+        os.makedirs(screenshots_dir, exist_ok=True)
+        os.makedirs(logs_dir, exist_ok=True)
+        os.makedirs(conversations_dir, exist_ok=True)
+
+        # Limpar arquivos antigos, mantendo os 3 mais recentes
+        self._cleanup_old_files(screenshots_dir, ".png", 3)
+        self._cleanup_old_files(logs_dir, ".json", 3)
+        self._cleanup_old_files(conversations_dir, ".json", 3)
+
+    def _cleanup_old_files(self, directory, file_extension, keep_count):
+        """Limpa arquivos antigos em um diretório, mantendo os mais recentes."""
+        try:
+            if not os.path.isdir(directory):
+                return
+
+            files = [f for f in os.listdir(directory) if f.endswith(file_extension)]
+
+            def get_timestamp(filename):
+                match = re.search(r'(\d{8}_\d{6})', filename)
+                return match.group(1) if match else "00000000_000000"
+
+            files.sort(key=get_timestamp, reverse=True)
+
+            if len(files) > keep_count:
+                files_to_delete = files[keep_count:]
+                for f in files_to_delete:
+                    try:
+                        os.remove(os.path.join(directory, f))
+                    except OSError:
+                        pass
+        except Exception:
+            pass
     
     def save_interaction_log(self, action, details=None):
         """Salva log de interações"""
@@ -43,7 +74,7 @@ class AIStudioInter                        current_url = self.page.url
                 'url': self.page.url if self.page else None
             }
             
-            log_file = f"{self.interactions_dir}/interaction_log.json"
+            log_file = self.log_file
             
             # Carregar logs existentes
             logs = []
@@ -305,9 +336,25 @@ class AIStudioInter                        current_url = self.page.url
             # Encontrar botão de novo chat
             button_selector = self.find_new_chat_button()
             
-            if not button_selector:
+            if button_selector:
+                try:
+                    print(f"🖱️ Clicando no botão de novo chat: {button_selector}")
+                    self.page.click(button_selector)
+                    time.sleep(5)  # Aguardar carregamento da página
+
+                    self.current_chat_url = self.page.url
+                    self.take_interaction_screenshot("new_chat_created")
+                    print(f"✅ Novo chat criado em: {self.current_chat_url}")
+                    return True
+                except Exception as e:
+                    print(f"❌ Erro ao clicar no botão de novo chat: {e}")
+                    return False
+            else:
                 print("❌ Não foi possível criar novo chat")
                 return False
+        except Exception as e:
+            print(f"❌ Erro ao criar novo chat: {e}")
+            return False
     
     def find_message_input(self):
         """Encontra campo de entrada de mensagem"""

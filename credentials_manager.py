@@ -115,10 +115,10 @@ class CredentialsManager:
     def get_file_credentials(self) -> Optional[Dict]:
         """Busca credenciais em arquivos de configuração"""
         config_files = [
-            '/workspaces/replit/.env',
-            '/workspaces/replit/config.json',
-            '/workspaces/replit/credentials.json',
-            '/workspaces/replit/.config/credentials.json',
+            '.env',
+            'config.json',
+            'credentials.json',
+            '.config/credentials.json',
         ]
         
         for config_file in config_files:
@@ -162,7 +162,7 @@ class CredentialsManager:
         print("export GOOGLE_PASSWORD='sua_senha'")
         
         print("\n📋 OPÇÃO 2 - Arquivo config.json:")
-        print("Criar: /workspaces/replit/config.json")
+        print("Criar: config.json")
         print(json.dumps({
             "google": {
                 "email": "seu_email@gmail.com",
@@ -171,7 +171,7 @@ class CredentialsManager:
         }, indent=2))
         
         print("\n📋 OPÇÃO 3 - Arquivo .env:")
-        print("Criar: /workspaces/replit/.env")
+        print("Criar: .env")
         print("GOOGLE_EMAIL=seu_email@gmail.com")
         print("GOOGLE_PASSWORD=sua_senha")
         
@@ -182,7 +182,7 @@ class CredentialsManager:
     
     def create_sample_config(self):
         """Cria arquivo de configuração de exemplo"""
-        config_path = "/workspaces/replit/config.example.json"
+        config_path = "config.example.json"
         sample_config = {
             "google": {
                 "email": "seu_email@gmail.com",

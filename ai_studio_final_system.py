@@ -7,23 +7,63 @@ import time
 import json
 import sys
 import os
+import re
 from datetime import datetime
-sys.path.append('/workspaces/replit')
 
 from ai_studio_login_2fa import AIStudioLogin2FA
 
 class AIStudioFinalInteraction(AIStudioLogin2FA):
     def __init__(self, headless=True):
         super().__init__(headless)
-        self.interactions_dir = "/workspaces/replit/interactions"
+        self.interactions_dir = "interactions"
         self.ensure_interaction_dirs()
         
     def ensure_interaction_dirs(self):
-        """Cria diretórios necessários"""
+        """Cria e limpa os diretórios de interação."""
+        screenshots_dir = f"{self.interactions_dir}/screenshots"
+        logs_dir = f"{self.interactions_dir}/logs"
+
         os.makedirs(self.interactions_dir, exist_ok=True)
-        os.makedirs(f"{self.interactions_dir}/screenshots", exist_ok=True)
-        os.makedirs(f"{self.interactions_dir}/logs", exist_ok=True)
+        os.makedirs(screenshots_dir, exist_ok=True)
+        os.makedirs(logs_dir, exist_ok=True)
+
+        # Limpar arquivos antigos, mantendo os 3 mais recentes
+        self._cleanup_old_files(screenshots_dir, ".png", 3)
+        self._cleanup_old_files(logs_dir, ".json", 3)
     
+    def _cleanup_old_files(self, directory, file_extension, keep_count):
+        """Limpa arquivos antigos em um diretório, mantendo os mais recentes."""
+        try:
+            # Garantir que o diretório existe
+            if not os.path.isdir(directory):
+                print(f"⚠️ Diretório não encontrado para limpeza: {directory}")
+                return
+
+            files = [f for f in os.listdir(directory) if f.endswith(file_extension)]
+
+            # Extrai o timestamp do nome do arquivo para ordenação
+            # Ex: final_report_20250814_223021.json -> 20250814_223021
+            def get_timestamp(filename):
+                match = re.search(r'(\d{8}_\d{6})', filename)
+                # Se não encontrar timestamp, retorna uma string que vai para o final
+                return match.group(1) if match else "00000000_000000"
+
+            # Ordena do mais novo para o mais antigo
+            files.sort(key=get_timestamp, reverse=True)
+
+            if len(files) > keep_count:
+                files_to_delete = files[keep_count:]
+                print(f"🧹 Limpando {len(files_to_delete)} arquivos antigos em {os.path.basename(directory)}...")
+                for f in files_to_delete:
+                    try:
+                        file_path = os.path.join(directory, f)
+                        os.remove(file_path)
+                        # print(f"   - Deletado: {f}") # Opcional: pode poluir o log
+                    except OSError as e:
+                        print(f"❌ Erro ao deletar {f}: {e}")
+        except Exception as e:
+            print(f"❌ Erro durante a limpeza de arquivos em {directory}: {e}")
+
     def take_screenshot(self, name):
         """Captura screenshot"""
         try:

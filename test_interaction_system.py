@@ -7,10 +7,10 @@ import sys
 import os
 
 # Adicionar caminho do projeto
-sys.path.append('/workspaces/replit')
+sys.path.append('.')
 
 try:
-    from ai_studio_interaction_complete import AIStudioInteraction
+    from ai_studio_final_system import AIStudioFinalInteraction as AIStudioInteraction
     print("✅ Módulo de interação importado com sucesso")
 except ImportError as e:
     print(f"❌ Erro ao importar: {e}")
@@ -42,7 +42,9 @@ def test_navigation():
         return success
         
     except Exception as e:
+        import traceback
         print(f"❌ Erro no teste: {e}")
+        traceback.print_exc()
         return False
 
 def test_chat_creation():
@@ -72,7 +74,9 @@ def test_chat_creation():
         return success
         
     except Exception as e:
+        import traceback
         print(f"❌ Erro no teste: {e}")
+        traceback.print_exc()
         return False
 
 def test_message_input_detection():
@@ -105,7 +109,9 @@ def test_message_input_detection():
         return success
         
     except Exception as e:
+        import traceback
         print(f"❌ Erro no teste: {e}")
+        traceback.print_exc()
         return False
 
 def test_complete_interaction():
@@ -134,7 +140,9 @@ def test_complete_interaction():
         return success
         
     except Exception as e:
+        import traceback
         print(f"❌ Erro no teste: {e}")
+        traceback.print_exc()
         return False
 
 def test_conversation_saving():
@@ -172,7 +180,9 @@ def test_conversation_saving():
         return success
         
     except Exception as e:
+        import traceback
         print(f"❌ Erro no teste: {e}")
+        traceback.print_exc()
         return False
 
 def main():
@@ -202,7 +212,9 @@ def main():
                 print(f"❌ {test_name}: FALHOU")
                 
         except Exception as e:
+            import traceback
             print(f"❌ {test_name}: ERRO - {e}")
+            traceback.print_exc()
             results.append((test_name, False))
     
     print("\n" + "=" * 45)
@@ -224,7 +236,7 @@ def main():
         print("⚠️ Muitos testes falharam")
         print("💡 Verifique os erros e logs")
     
-    print(f"\n📁 Verifique arquivos salvos em: /workspaces/replit/interactions/")
+    print(f"\n📁 Verifique arquivos salvos em: interactions/")
 
 if __name__ == "__main__":
     main()
