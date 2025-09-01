@@ -156,6 +156,12 @@ def get_browser_info() -> dict:
             
             return browsers
             
+    except ImportError:
+        return {
+            'chromium': {'available': False, 'path': None},
+            'firefox': {'available': False, 'path': None},
+            'webkit': {'available': False, 'path': None}
+        }
     except Exception:
         return {}
 

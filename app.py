@@ -1,7 +1,11 @@
 import streamlit as st
 import os
+from dotenv import load_dotenv
 from automation import GoogleAIStudioAutomation
 from utils import validate_email, sanitize_input, check_playwright_installation, get_browser_info
+
+# Carregar variáveis de ambiente do arquivo .env se existir
+load_dotenv()
 
 def main():
     """
@@ -112,7 +116,36 @@ def main():
             # Verificar dependências antes de executar
             if not check_playwright_installation():
                 st.error("❌ Playwright não está instalado corretamente.")
-                st.info("💡 Clique em 'Verificar Dependências' na barra lateral para mais informações.")
+                
+                # Expandir informações sobre a solução
+                with st.expander("� Como resolver este problema", expanded=True):
+                    st.markdown("""
+                    **No ambiente Codespaces/Replit, o Playwright pode não funcionar devido a limitações do sistema.**
+                    
+                    **Soluções disponíveis:**
+                    
+                    1. **🎭 Use o Modo Demonstração** (recomendado aqui):
+                       - Clique no botão "📋 Simular Automação" abaixo
+                       - Veja como o código funcionaria
+                    
+                    2. **💻 Execute em ambiente local**:
+                       ```bash
+                       pip install playwright
+                       playwright install chromium
+                       ```
+                    
+                    3. **🐳 Use Docker localmente**:
+                       ```bash
+                       docker run -it mcr.microsoft.com/playwright/python:v1.40.0-jammy
+                       ```
+                    
+                    **Por que isso acontece?**
+                    - Ambiente Alpine Linux não tem todas as dependências do Chromium
+                    - Limitações de segurança do ambiente containerizado
+                    - Arquitetura específica pode não ser suportada
+                    """)
+                
+                st.info("💡 **Dica**: Use o botão 'Simular Automação' para ver uma demonstração completa!")
                 return
             
             # Executar automação
@@ -183,15 +216,32 @@ def execute_automation(email: str, password: str, headless: bool, timeout_2fa: i
             automation.enter_password(password)
             
             # Etapa 6: Aguardar 2FA
-            status_text.text(f"⏳ Aguardando autenticação de dois fatores ({timeout_2fa}s)...")
+            status_text.text(f"📱 Verificando autenticação de dois fatores...")
             progress_bar.progress(85)
             automation.wait_for_2fa()
+            
+            # Verificar se há screenshot de 2FA
+            import os
+            if os.path.exists("2fa_page.png"):
+                st.info("📱 **2FA Detectado!** Screenshot da página salvo em: `2fa_page.png`")
+                st.info("🔍 **Verificação necessária**: Confirme no seu celular ou use o modo interativo")
+                
+                # Mostrar opção para modo interativo
+                if st.button("🔧 Usar Modo Interativo", key="interactive_mode"):
+                    st.info("💻 **Execute no terminal**: `python interactive_login.py`")
             
             # Finalizar
             progress_bar.progress(100)
             status_text.text("✅ Login concluído com sucesso!")
             
             st.success("🎉 Automação finalizada com sucesso!")
+            
+            # Mostrar screenshots se existirem
+            screenshot_files = ["login_success.png", "current_page.png", "2fa_page.png"]
+            for screenshot in screenshot_files:
+                if os.path.exists(screenshot):
+                    st.success(f"📸 Screenshot salvo: `{screenshot}`")
+            
             st.balloons()
             
             automation.close_browser()
@@ -269,24 +319,61 @@ with sync_playwright() as p:
     
     # 1. Navegar para Google AI Studio
     page.goto("https://aistudio.google.com/")
+    page.wait_for_load_state('networkidle')
     
-    # 2. Clicar em "Sign in"
-    page.click("text=Sign in")
+    # 2. Procurar e clicar no botão "Get started" ou "Sign in"
+    login_selectors = [
+        "text=Get started",      # Botão principal na página inicial
+        "text=Sign in",         # Botão alternativo
+        "button:has-text('Get started')",
+        "a:has-text('Get started')"
+    ]
     
-    # 3. Inserir email
+    clicked = False
+    for selector in login_selectors:
+        try:
+            page.wait_for_selector(selector, timeout=5000)
+            if page.is_visible(selector):
+                page.click(selector)
+                print(f"✅ Clicou em: {{selector}}")
+                clicked = True
+                break
+        except:
+            continue
+    
+    if not clicked:
+        # Busca mais avançada usando JavaScript
+        page.evaluate('''
+            () => {{
+                const buttons = document.querySelectorAll('button, a, [role="button"]');
+                for (const btn of buttons) {{
+                    if (btn.textContent.toLowerCase().includes('get started')) {{
+                        btn.click();
+                        return;
+                    }}
+                }}
+            }}
+        ''')
+    
+    # 3. Aguardar redirecionamento para login do Google
+    page.wait_for_function(
+        "() => window.location.href.includes('accounts.google.com')",
+        timeout=15000
+    )
+    
+    # 4. Inserir email
     page.fill("input[type='email']", "{email}")
     page.click("text=Next")
     
-    # 4. Inserir senha
+    # 5. Inserir senha
     page.wait_for_timeout(3000)
     page.fill("input[type='password']", "***")
     page.click("text=Next")
     
-    # 5. Aguardar 2FA
+    # 6. Aguardar 2FA
     page.wait_for_timeout({timeout_2fa * 1000})
     
-    # 6. Login concluído
-    print("Login automatizado realizado!")
+    print("✅ Login automatizado realizado!")
     browser.close()
         """
         
