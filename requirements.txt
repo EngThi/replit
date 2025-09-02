@@ -1,3 +1,5 @@
 streamlit
 playwright
 python-dotenv
+pytest
+pytest-playwright
