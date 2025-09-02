@@ -10,7 +10,7 @@ import re
 from datetime import datetime
 from ai_studio_login_2fa import AIStudioLogin2FA
 
-class AIStudioInteraction(AIStudioLogin2FA):
+class AIStudioAutomator(AIStudioLogin2FA):
     def __init__(self, headless=True):
         """
         Inicializa sistema de interação com AI Studio
@@ -267,90 +267,19 @@ class AIStudioInteraction(AIStudioLogin2FA):
             return None
     
     def create_new_chat(self):
-        """Cria um novo chat"""
+        """Cria um novo chat de forma robusta, tentando várias URLs e botões."""
         try:
             print("🆕 Criando novo chat...")
             
-            # Primeiro verificar se já está numa página de chat
-            current_url = self.page.url
-            print(f"🔗 URL atual: {current_url}")
+            chat_url = self.try_advanced_urls()
             
-            # Se já está numa página de chat válida, não precisa criar novo
-            if (("aistudio.google.com" in current_url and 
-                 ("chat" in current_url.lower() or 
-                  "prompts" in current_url.lower() or
-                  "app" in current_url.lower())) and
-                "accounts.google.com" not in current_url):
-                
-                # Verificar se há campo de input visível
-                input_field = self.find_message_input()
-                if input_field:
-                    print("✅ Já está numa página de chat válida")
-                    self.current_chat_url = current_url
-                    self.take_interaction_screenshot("existing_chat_found")
-                    return True
-            
-            # Tentar URLs diretas primeiro (mais confiável)
-            print("🔗 Tentando URLs diretas para novo chat...")
-            direct_urls = [
-                "https://aistudio.google.com/app/prompts/new_chat",
-                "https://aistudio.google.com/app/prompts",
-                "https://aistudio.google.com/chat",
-                "https://aistudio.google.com/app/new",
-                "https://aistudio.google.com/prompts/new"
-            ]
-            
-            for url in direct_urls:
-                try:
-                    print(f"🔗 Tentando: {url}")
-                    self.page.goto(url, timeout=15000)
-                    time.sleep(3)
-                    
-                    current_url = self.page.url
-                    is_chat_page = ("chat" in current_url.lower() or 
-                                   "new" in current_url.lower() or 
-                                   "prompts" in current_url.lower())
-                    is_not_login = "accounts.google.com" not in current_url
-                    
-                    if is_chat_page and is_not_login:
-                        print("✅ Chat acessado via URL direta")
-                        self.current_chat_url = current_url
-                        self.take_interaction_screenshot("new_chat_created")
-                        self.save_interaction_log("create_new_chat", {
-                            "method": "direct_url",
-                            "url": url,
-                            "final_url": current_url
-                        })
-                        return True
-                except Exception as e:
-                    print(f"⚠️ URL {url} falhou: {e}")
-                    continue
-            
-            # Se URLs diretas falharam, tentar encontrar botão
-            print("� URLs diretas falharam, procurando botão...")
-            
-            # Voltar para página inicial
-            self.page.goto("https://aistudio.google.com/", timeout=15000)
-            time.sleep(3)
-            
-            # Encontrar botão de novo chat
-            button_selector = self.find_new_chat_button()
-            
-            if button_selector:
-                try:
-                    print(f"🖱️ Clicando no botão de novo chat: {button_selector}")
-                    self.page.click(button_selector)
-                    time.sleep(5)  # Aguardar carregamento da página
-
-                    self.current_chat_url = self.page.url
-                    self.take_interaction_screenshot("new_chat_created")
-                    print(f"✅ Novo chat criado em: {self.current_chat_url}")
-                    return True
-                except Exception as e:
-                    print(f"❌ Erro ao clicar no botão de novo chat: {e}")
-                    return False
+            if chat_url:
+                print(f"✅ Chat encontrado ou criado em: {chat_url}")
+                self.current_chat_url = chat_url
+                self.take_interaction_screenshot("chat_page_found")
+                return True
             else:
-                print("❌ Não foi possível criar novo chat")
+                print("❌ Não foi possível encontrar ou criar um novo chat.")
                 return False
         except Exception as e:
             print(f"❌ Erro ao criar novo chat: {e}")
@@ -706,6 +635,214 @@ class AIStudioInteraction(AIStudioLogin2FA):
             print(f"❌ Erro ao salvar conversa: {e}")
             return None
     
+    def click_get_started_button(self):
+        """Clica no botão 'Get started' na página welcome"""
+        try:
+            print("🎯 Procurando botão 'Get started'...")
+
+            # Aguardar a página carregar
+            time.sleep(3)
+
+            # Diferentes seletores possíveis para o botão Get started
+            get_started_selectors = [
+                "text=Get started",
+                "button:has-text('Get started')",
+                "a:has-text('Get started')",
+                "[data-testid*='get-started']",
+                ".get-started",
+                "#get-started",
+                "button[aria-label*='Get started']",
+                "a[aria-label*='Get started']"
+            ]
+
+            for selector in get_started_selectors:
+                try:
+                    print(f"🔍 Tentando seletor: {selector}")
+
+                    # Verificar se elemento existe e está visível
+                    if self.page.is_visible(selector, timeout=2000):
+                        print(f"✅ Botão encontrado: {selector}")
+
+                        # Rolar até o elemento
+                        self.page.evaluate(f'document.querySelector("{selector}").scrollIntoView()')
+                        time.sleep(1)
+
+                        # Clicar
+                        self.page.click(selector)
+                        print("🖱️ Clique realizado!")
+
+                        # Aguardar navegação
+                        time.sleep(5)
+
+                        new_url = self.page.url
+                        print(f"🔗 Nova URL: {new_url}")
+
+                        # Verificar se saiu da página welcome
+                        if "welcome" not in new_url and "accounts.google.com" not in new_url:
+                            print("✅ Navegação bem-sucedida!")
+                            return True
+                        else:
+                            print("⚠️ Ainda na welcome ou redirecionado para login")
+
+                except Exception as e:
+                    print(f"❌ Erro com seletor {selector}: {e}")
+                    continue
+
+            # Busca mais ampla via JavaScript
+            print("🔍 Busca JavaScript por 'Get started'...")
+
+            js_result = self.page.evaluate("""
+                () => {
+                    const elements = document.querySelectorAll('*');
+
+                    for (const el of elements) {
+                        const text = el.textContent.trim();
+                        const isClickable = el.tagName === 'BUTTON' || el.tagName === 'A' ||
+                                          el.onclick || el.href || el.getAttribute('role') === 'button';
+
+                        if (text.toLowerCase().includes('get started') && isClickable && el.offsetParent) {
+                            el.click();
+                            return {
+                                success: true,
+                                text: text,
+                                tag: el.tagName
+                            };
+                        }
+                    }
+
+                    return {success: false};
+                }
+            """)
+
+            if js_result['success']:
+                print(f"✅ Clicado via JavaScript: {js_result['tag']} - '{js_result['text']}'")
+                time.sleep(5)
+
+                new_url = self.page.url
+                print(f"🔗 URL após JS: {new_url}")
+
+                if "welcome" not in new_url and "accounts.google.com" not in new_url:
+                    return True
+
+            print("❌ Botão 'Get started' não encontrado")
+            return False
+
+        except Exception as e:
+            print(f"❌ Erro clicando em Get started: {e}")
+            return False
+
+    def try_advanced_urls(self):
+        """Tenta URLs mais avançadas e específicas"""
+        try:
+            print("\n🎯 TENTANDO URLS AVANÇADAS")
+            print("=" * 30)
+
+            # Primeiro, verificar se estamos na welcome e clicar Get started
+            current_url = self.page.url
+            if "welcome" in current_url:
+                print("📍 Ainda na welcome - tentando Get started novamente...")
+                if self.click_get_started_button():
+                    time.sleep(5)
+                    current_url = self.page.url
+                    print(f"🔗 Nova URL após Get started: {current_url}")
+
+                    # Verificar se agora temos acesso a chat
+                    input_check = self.page.evaluate("""
+                        () => {
+                            const inputs = document.querySelectorAll('textarea, input[type="text"], [contenteditable="true"]');
+                            for (const input of inputs) {
+                                if (input.offsetParent) {
+                                    const rect = input.getBoundingClientRect();
+                                    if (rect.width > 200 && rect.height > 30) {
+                                        return {
+                                            found: true,
+                                            tag: input.tagName,
+                                            placeholder: input.placeholder || '',
+                                            width: rect.width,
+                                            height: rect.height
+                                        };
+                                    }
+                                }
+                            }
+                            return {found: false};
+                        }
+                    """)
+
+                    if input_check['found']:
+                        print(f"✅ SUCESSO! Interface de chat encontrada após Get started!")
+                        print(f"   Campo: {input_check['tag']} - {input_check['width']}x{input_check['height']}")
+                        return current_url
+
+            # URLs mais específicas para testar
+            urls_to_test = [
+                "https://aistudio.google.com/app/prompts/new",
+                "https://makersuite.google.com/app/prompts/new",
+                "https://aistudio.google.com/prompt/new",
+                "https://aistudio.google.com/create",
+                "https://aistudio.google.com/workspace/new",
+                "https://bard.google.com/",  # Alternativa
+                "https://gemini.google.com/app"  # Nova interface Gemini
+            ]
+
+            for url in urls_to_test:
+                print(f"\n🔗 Testando: {url}")
+
+                try:
+                    self.page.goto(url, timeout=15000)
+                    time.sleep(4)
+
+                    final_url = self.page.url
+                    print(f"   Final: {final_url}")
+
+                    # Se não redirecionou para login
+                    if "accounts.google.com" not in final_url:
+                        # Verificar se tem campo de input
+                        input_check = self.page.evaluate("""
+                            () => {
+                                const inputs = document.querySelectorAll('textarea, input[type="text"], [contenteditable="true"]');
+                                let found = null;
+
+                                for (const input of inputs) {
+                                    if (input.offsetParent) {
+                                        const rect = input.getBoundingClientRect();
+                                        if (rect.width > 200 && rect.height > 30) {
+                                            found = {
+                                                tag: input.tagName,
+                                                placeholder: input.placeholder || '',
+                                                className: Array.from(input.classList).join(' ').slice(0, 50),
+                                                width: rect.width,
+                                                height: rect.height
+                                            };
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                return found;
+                            }
+                        """)
+
+                        if input_check:
+                            print(f"   ✅ SUCESSO! Campo encontrado:")
+                            print(f"      {input_check['tag']} - {input_check['width']}x{input_check['height']}")
+                            print(f"      Placeholder: '{input_check['placeholder']}'")
+
+                            return final_url
+                        else:
+                            print(f"   ⚠️ Página carregou mas sem campo de input adequado")
+                    else:
+                        print(f"   ❌ Redirecionado para login")
+
+                except Exception as e:
+                    print(f"   ❌ Erro: {e}")
+                    continue
+
+            return None
+
+        except Exception as e:
+            print(f"❌ Erro nas URLs avançadas: {e}")
+            return None
+
     def complete_interaction(self, message):
         """Executa interação completa: login + navegação + envio + resposta"""
         try:

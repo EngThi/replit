@@ -44,7 +44,7 @@ case $choice in
         $PYTHON_CMD -c "
 import sys
 sys.path.append('.')
-from ai_studio_interaction_complete import AIStudioInteraction
+from ai_studio_automator import AIStudioAutomator as AIStudioInteraction
 
 interaction = AIStudioInteraction(headless=True)
 try:
@@ -64,7 +64,7 @@ finally:
         $PYTHON_CMD -c "
 import sys
 sys.path.append('.')
-from ai_studio_interaction_complete import AIStudioInteraction
+from ai_studio_automator import AIStudioAutomator as AIStudioInteraction
 
 interaction = AIStudioInteraction(headless=True)
 try:
@@ -105,7 +105,7 @@ finally:
         ;;
     4)
         echo "🎯 Demo interativo completo..."
-        $PYTHON_CMD ai_studio_interaction_complete.py
+        $PYTHON_CMD ai_studio_automator.py
         ;;
     *)
         echo "❌ Opção inválida"

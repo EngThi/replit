@@ -10,7 +10,7 @@ import os
 sys.path.append('.')
 
 try:
-    from ai_studio_final_system import AIStudioFinalInteraction as AIStudioInteraction
+    from ai_studio_automator import AIStudioAutomator as AIStudioInteraction
     print("✅ Módulo de interação importado com sucesso")
 except ImportError as e:
     print(f"❌ Erro ao importar: {e}")
