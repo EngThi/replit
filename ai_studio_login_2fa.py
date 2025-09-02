@@ -110,74 +110,27 @@ class AIStudioLogin2FA:
             return None
     
     def check_if_logged_in(self):
-        """Verifica se já está logado no AI Studio"""
+        """Verifica se já está logado no AI Studio de forma mais robusta."""
         try:
-            print("🔍 Verificando status de login...")
+            print("🔍 Verificando status de login de forma robusta...")
             
-            # Navegar para AI Studio
-            self.page.goto("https://aistudio.google.com/", timeout=30000)
-            self.page.wait_for_load_state('networkidle')
+            # Navegar para uma página que exige autenticação
+            self.page.goto("https://aistudio.google.com/apikey", timeout=20000)
             time.sleep(3)
             
             current_url = self.page.url
-            print(f"🔗 URL atual: {current_url}")
-            
-            # Capturar screenshot para análise
-            self.page.screenshot(path="login_status_check.png", full_page=True)
-            print("📸 Screenshot de status: login_status_check.png")
-            
-            # Indicadores de que está logado
-            logged_in_selectors = [
-                "text=Create new",
-                "text=New chat",
-                "text=Workspace",
-                "text=API key",
-                "[data-testid*='user']",
-                ".user-avatar",
-                "button[aria-label*='account']",
-                "button[aria-label*='profile']"
-            ]
-            
-            for selector in logged_in_selectors:
-                try:
-                    if self.page.is_visible(selector, timeout=2000):
-                        print(f"✅ Indicador de login encontrado: {selector}")
-                        self.save_session_info("logged_in", {"method": "existing_session"})
-                        return True
-                except:
-                    continue
-            
-            # Verificar se está na página de login
-            if "accounts.google.com" in current_url:
-                print("⚠️ Redirecionado para login - não está logado")
+            print(f"🔗 URL de verificação: {current_url}")
+
+            # Se a URL não contém 'accounts.google.com', o usuário está logado.
+            if "accounts.google.com" not in current_url:
+                print("✅ Login confirmado (acesso à página de API key)")
+                self.save_session_info("logged_in", {"method": "api_key_check"})
+                # Voltar para a página inicial para continuar o fluxo
+                self.page.goto("https://aistudio.google.com/", timeout=20000)
+                return True
+            else:
+                print("⚠️ Redirecionado para login. Sessão inválida ou expirada.")
                 return False
-            
-            # Verificar por indicadores de login necessário
-            login_needed_selectors = [
-                "text=Get started",
-                "text=Sign in", 
-                "text=Login",
-                "text=Continue"
-            ]
-            
-            for selector in login_needed_selectors:
-                try:
-                    if self.page.is_visible(selector, timeout=2000):
-                        print(f"⚠️ Indicador de login necessário: {selector}")
-                        return False
-                except:
-                    continue
-            
-            # Se não encontrou indicadores claros, fazer análise mais profunda
-            page_text = self.page.evaluate("() => document.body.textContent")
-            
-            if any(term in page_text.lower() for term in ["sign in", "get started", "login"]):
-                print("⚠️ Texto indica que login é necessário")
-                return False
-            
-            print("✅ Assumindo que está logado (nenhum indicador de login encontrado)")
-            self.save_session_info("logged_in", {"method": "assumption"})
-            return True
             
         except Exception as e:
             print(f"❌ Erro ao verificar login: {e}")

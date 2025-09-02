@@ -9,19 +9,24 @@ Sistema AI Studio - Fluxo completo para conta desconectada
 import sys
 import time
 import os
+import re
 from datetime import datetime
-sys.path.append('/workspaces/replit')
+sys.path.append('.')
 
 from ai_studio_login_2fa import AIStudioLogin2FA
 from credentials_manager import CredentialsManager
 
 class AIStudioDisconnectedAccount(AIStudioLogin2FA):
     
+    def _sanitize_filename(self, name):
+        """Remove caracteres inválidos de um nome de arquivo."""
+        return re.sub(r'[^a-zA-Z0-9_.-]', '_', name)
+
     def take_screenshot(self, name):
         """Captura screenshot com nome personalizado"""
         try:
             # Criar diretório se não existir
-            screenshot_dir = "/workspaces/replit/interactions/screenshots"
+            screenshot_dir = "interactions/screenshots"
             os.makedirs(screenshot_dir, exist_ok=True)
             
             # Gerar nome do arquivo com timestamp
@@ -108,7 +113,8 @@ class AIStudioDisconnectedAccount(AIStudioLogin2FA):
                                     print(f"   👆 Clicando no elemento {i+1}")
                                     
                                     # Capturar screenshot antes do clique
-                                    self.take_screenshot(f"before_click_{selector.replace(':', '_').replace('[', '').replace(']', '')}")
+                                    sanitized_selector = self._sanitize_filename(selector)
+                                    self.take_screenshot(f"before_click_{sanitized_selector}")
                                     
                                     # Tentar diferentes métodos de clique
                                     try:
